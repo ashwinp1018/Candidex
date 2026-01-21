@@ -195,3 +195,27 @@ export const submitInterview = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * @route   GET /api/interview/history
+ * @desc    Get interview history for logged-in user
+ * @access  Private
+ */
+export const getInterviewHistory = async (req, res, next) => {
+  try {
+    // Extract user ID from req.user (set by auth middleware)
+    const userId = req.user._id;
+
+    // Query interview sessions for the user, sorted by createdAt descending
+    const sessions = await InterviewSession.find({ userId })
+      .select('role difficulty overallScore createdAt')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: sessions,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
