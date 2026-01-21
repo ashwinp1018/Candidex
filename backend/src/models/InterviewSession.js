@@ -27,8 +27,33 @@ const interviewSessionSchema = new mongoose.Schema(
       default: [],
     },
     evaluation: {
-      type: Object,
-      default: {},
+      clarityScore: {
+        type: Number,
+        min: 0,
+        max: 100,
+      },
+      correctnessScore: {
+        type: Number,
+        min: 0,
+        max: 100,
+      },
+      communicationScore: {
+        type: Number,
+        min: 0,
+        max: 100,
+      },
+      strengths: {
+        type: [String],
+        default: [],
+      },
+      areasForImprovement: {
+        type: [String],
+        default: [],
+      },
+      overallFeedback: {
+        type: String,
+        default: '',
+      },
     },
     overallScore: {
       type: Number,

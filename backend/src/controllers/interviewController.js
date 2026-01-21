@@ -37,42 +37,78 @@ const generateMockQuestions = (role, difficulty) => {
 /**
  * Generate mock evaluation based on answers
  * @param {Array<string>} answers - User's answers
- * @returns {Object} Evaluation object with score and feedback
+ * @returns {Object} Evaluation object with structured metrics
  */
 const generateMockEvaluation = (answers) => {
   // Mock scoring logic - in production, this would use AI
-  const baseScore = 60;
+  // Generate random scores between 50-95 based on answer quality
   const answerQuality = answers.map((answer) => {
-    if (!answer || answer.trim().length < 10) return 0.5;
-    if (answer.length < 50) return 0.7;
-    if (answer.length < 150) return 0.85;
+    if (!answer || answer.trim().length < 10) return 0.3;
+    if (answer.length < 50) return 0.5;
+    if (answer.length < 150) return 0.75;
     return 1.0;
   });
 
   const averageQuality = answerQuality.reduce((a, b) => a + b, 0) / answerQuality.length;
-  const overallScore = Math.round(baseScore + averageQuality * 40);
+  const baseScore = Math.round(50 + averageQuality * 45);
 
-  const feedback = {
-    strengths: [
-      'Good communication skills',
-      'Clear understanding of concepts',
-      'Well-structured responses',
-    ],
-    areasForImprovement: [
-      'Could provide more specific examples',
-      'Consider elaborating on technical details',
-      'Practice articulating complex ideas more concisely',
-    ],
-    overallFeedback: `You demonstrated solid knowledge and communication skills. Your answers were ${overallScore >= 80 ? 'excellent' : overallScore >= 65 ? 'good' : 'adequate'}. Continue practicing to improve your interview performance.`,
-  };
+  // Generate individual scores with some variation
+  const clarityScore = Math.min(100, Math.max(0, baseScore + Math.floor(Math.random() * 20) - 10));
+  const correctnessScore = Math.min(100, Math.max(0, baseScore + Math.floor(Math.random() * 20) - 10));
+  const communicationScore = Math.min(100, Math.max(0, baseScore + Math.floor(Math.random() * 20) - 10));
+
+  // Calculate overall score as average of the three scores
+  const overallScore = Math.round((clarityScore + correctnessScore + communicationScore) / 3);
+
+  // Generate strengths based on score
+  const strengths = [];
+  if (clarityScore >= 70) {
+    strengths.push('Clear and articulate communication');
+  }
+  if (correctnessScore >= 70) {
+    strengths.push('Strong technical knowledge and accuracy');
+  }
+  if (communicationScore >= 70) {
+    strengths.push('Effective explanation of concepts');
+  }
+  if (strengths.length === 0) {
+    strengths.push('Demonstrated effort in responses');
+  }
+
+  // Generate areas for improvement
+  const areasForImprovement = [];
+  if (clarityScore < 70) {
+    areasForImprovement.push('Work on articulating thoughts more clearly');
+  }
+  if (correctnessScore < 70) {
+    areasForImprovement.push('Enhance technical accuracy and depth');
+  }
+  if (communicationScore < 70) {
+    areasForImprovement.push('Improve communication and explanation skills');
+  }
+  if (areasForImprovement.length === 0) {
+    areasForImprovement.push('Continue practicing to maintain high performance');
+  }
+
+  // Generate overall feedback
+  let overallFeedback = '';
+  if (overallScore >= 85) {
+    overallFeedback = 'Excellent performance! You demonstrated strong knowledge, clear communication, and accurate responses. Keep up the great work!';
+  } else if (overallScore >= 70) {
+    overallFeedback = 'Good performance overall. You showed solid understanding and communication skills. With continued practice, you can reach an excellent level.';
+  } else if (overallScore >= 60) {
+    overallFeedback = 'Adequate performance. There is room for improvement in clarity, correctness, and communication. Focus on providing more detailed and structured answers.';
+  } else {
+    overallFeedback = 'Your responses need improvement. Focus on providing more detailed answers, enhancing technical accuracy, and improving communication clarity.';
+  }
 
   return {
-    score: overallScore,
-    feedback,
-    answerQuality: answerQuality.map((q, i) => ({
-      questionIndex: i,
-      quality: q,
-    })),
+    clarityScore,
+    correctnessScore,
+    communicationScore,
+    strengths,
+    areasForImprovement,
+    overallFeedback,
   };
 };
 
@@ -175,10 +211,15 @@ export const submitInterview = async (req, res, next) => {
     // Generate mock evaluation
     const evaluation = generateMockEvaluation(answers);
 
+    // Calculate overall score as average of the three scores
+    const overallScore = Math.round(
+      (evaluation.clarityScore + evaluation.correctnessScore + evaluation.communicationScore) / 3
+    );
+
     // Update interview session
     interviewSession.answers = answers;
     interviewSession.evaluation = evaluation;
-    interviewSession.overallScore = evaluation.score;
+    interviewSession.overallScore = overallScore;
     await interviewSession.save();
 
     res.status(200).json({
