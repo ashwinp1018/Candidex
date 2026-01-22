@@ -1,6 +1,7 @@
 import express from 'express';
 import { startInterview, submitInterview, getInterviewHistory } from '../controllers/interviewController.js';
 import { protect } from '../middleware/authMiddleware.js';
+import { aiRateLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
 
@@ -9,14 +10,14 @@ const router = express.Router();
  * @desc    Start a new interview session
  * @access  Private
  */
-router.post('/start', protect, startInterview);
+router.post('/start', protect, aiRateLimiter(), startInterview);
 
 /**
  * @route   POST /api/interview/submit
  * @desc    Submit interview answers and get evaluation
  * @access  Private
  */
-router.post('/submit', protect, submitInterview);
+router.post('/submit', protect, aiRateLimiter(), submitInterview);
 
 /**
  * @route   GET /api/interview/history

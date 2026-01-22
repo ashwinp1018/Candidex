@@ -65,6 +65,26 @@ const interviewSessionSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    aiUsage: {
+      type: [
+        {
+          model: {
+            type: String,
+            default: '',
+          },
+          promptType: {
+            type: String,
+            enum: ['question_generation', 'evaluation'],
+          },
+          timestamp: {
+            type: Date,
+            default: Date.now,
+          },
+        },
+      ],
+      default: [],
+      select: false, // Not exposed in API responses
+    },
   },
   {
     timestamps: false, // We're using createdAt manually
