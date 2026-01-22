@@ -120,15 +120,53 @@ export const submitInterview = async (req, res, next) => {
     );
     const evaluation = evaluationResult.evaluation;
 
+    // Validate per-question evaluations array length matches number of questions
+    if (evaluation.perQuestionEvaluations && evaluation.perQuestionEvaluations.length !== interviewSession.questions.length) {
+      return res.status(500).json({
+        success: false,
+        message: 'Evaluation error: per-question evaluations count mismatch',
+      });
+    }
+
     // Calculate overall score as average of the three scores
     const overallScore = Math.round(
       (evaluation.clarityScore + evaluation.correctnessScore + evaluation.communicationScore) / 3
     );
 
+    // Compute strongest and weakest question indices based on per-question averages
+    let strongestQuestionIndex = null;
+    let weakestQuestionIndex = null;
+
+    if (
+      Array.isArray(evaluation.perQuestionEvaluations) &&
+      evaluation.perQuestionEvaluations.length === interviewSession.questions.length
+    ) {
+    
+      // Calculate average scores for each question
+      const questionAverages = evaluation.perQuestionEvaluations.map((qEval, index) => {
+        const avg = (qEval.clarityScore + qEval.correctnessScore + qEval.communicationScore) / 3;
+        return { index, average: avg };
+      });
+
+      // Find strongest (highest average)
+      const strongest = questionAverages.reduce((max, current) => 
+        current.average > max.average ? current : max
+      );
+      strongestQuestionIndex = strongest.index;
+
+      // Find weakest (lowest average)
+      const weakest = questionAverages.reduce((min, current) => 
+        current.average < min.average ? current : min
+      );
+      weakestQuestionIndex = weakest.index;
+    }
+
     // Update interview session
     interviewSession.answers = answers;
     interviewSession.evaluation = evaluation;
     interviewSession.overallScore = overallScore;
+    interviewSession.strongestQuestionIndex = strongestQuestionIndex;
+    interviewSession.weakestQuestionIndex = weakestQuestionIndex;
 
     // Log AI usage metadata (internal only, not exposed in API)
     if (evaluationResult.model) {
@@ -151,7 +189,7 @@ export const submitInterview = async (req, res, next) => {
         sessionId: interviewSession._id,
         overallScore: interviewSession.overallScore,
         evaluation: interviewSession.evaluation,
-        submittedAt: new Date(),
+        submittedAt: interviewSession.updatedAt || new Date(),
       },
     });
   } catch (error) {
@@ -177,6 +215,111 @@ export const getInterviewHistory = async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: sessions,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @route   GET /api/interview/analytics
+ * @desc    Get interview analytics for logged-in user
+ * @access  Private
+ */
+export const getInterviewAnalytics = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+
+    // Get all completed interviews (with overallScore)
+    const completedInterviews = await InterviewSession.find({
+      userId,
+      overallScore: { $exists: true, $ne: null },
+    }).select('overallScore evaluation createdAt');
+
+    if (completedInterviews.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          totalInterviews: 0,
+          averageScore: 0,
+          strongestSkill: null,
+          lastFiveScores: [],
+          improvementTrend: 'stable',
+        },
+      });
+    }
+
+    // Calculate total interviews
+    const totalInterviews = completedInterviews.length;
+
+    // Calculate average score
+    const totalScore = completedInterviews.reduce((sum, session) => sum + session.overallScore, 0);
+    const averageScore = Math.round((totalScore / totalInterviews) * 100) / 100;
+
+    // Calculate strongest skill (average of clarity, correctness, communication across all interviews)
+    const skillTotals = {
+      clarity: 0,
+      correctness: 0,
+      communication: 0,
+    };
+
+    completedInterviews.forEach((session) => {
+      if (session.evaluation) {
+        skillTotals.clarity += session.evaluation.clarityScore || 0;
+        skillTotals.correctness += session.evaluation.correctnessScore || 0;
+        skillTotals.communication += session.evaluation.communicationScore || 0;
+      }
+    });
+
+    const skillAverages = {
+      clarity: skillTotals.clarity / totalInterviews,
+      correctness: skillTotals.correctness / totalInterviews,
+      communication: skillTotals.communication / totalInterviews,
+    };
+
+    const strongestSkill = Object.entries(skillAverages).reduce(
+      (max, [skill, avg]) => (avg > max.average ? { skill, average: avg } : max),
+      { skill: null, average: -Infinity }
+    ).skill;
+    
+    // Get last five scores (sorted by createdAt descending)
+    const sortedByDate = [...completedInterviews].sort((a, b) => 
+      new Date(b.createdAt) - new Date(a.createdAt)
+    );
+    const lastFiveScores = sortedByDate.slice(0, 5).map(session => ({
+      score: session.overallScore,
+      date: session.createdAt,
+    }));
+
+    // Calculate improvement trend
+    let improvementTrend = 'stable';
+
+if (completedInterviews.length >= 4) {
+  const midpoint = Math.floor(completedInterviews.length / 2);
+
+  const older = completedInterviews.slice(0, midpoint);
+  const recent = completedInterviews.slice(midpoint);
+
+  const avg = arr =>
+    arr.reduce((sum, s) => sum + s.overallScore, 0) / arr.length;
+
+  const olderAvg = avg(older);
+  const recentAvg = avg(recent);
+
+  if (recentAvg > olderAvg + 5) improvementTrend = 'improving';
+  else if (recentAvg < olderAvg - 5) improvementTrend = 'declining';
+}
+
+
+    res.status(200).json({
+      success: true,
+      data: {
+        totalInterviews,
+        averageScore,
+        strongestSkill,
+        lastFiveScores,
+        improvementTrend,
+      },
     });
   } catch (error) {
     next(error);

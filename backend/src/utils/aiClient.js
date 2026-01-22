@@ -173,10 +173,18 @@ Evaluate the candidate's responses and return ONLY valid JSON with this exact st
   "communicationScore": number (0-100),
   "strengths": [string],
   "areasForImprovement": [string],
-  "overallFeedback": string
+  "overallFeedback": string,
+  "perQuestionEvaluations": [
+    {
+      "clarityScore": number (0-100),
+      "correctnessScore": number (0-100),
+      "communicationScore": number (0-100),
+      "feedback": string
+    }
+  ]
 }
 
-Provide detailed, constructive feedback.`;
+The perQuestionEvaluations array must have exactly ${questions.length} items, one for each question-answer pair. Provide detailed, constructive feedback for each answer.`;
 
     // Race between OpenAI call and timeout
     const completion = await Promise.race([
@@ -240,6 +248,34 @@ Provide detailed, constructive feedback.`;
       throw new Error('Invalid response format: overallFeedback must be a string');
     }
 
+    // Validate per-question evaluations
+    if (!parsed.perQuestionEvaluations || !Array.isArray(parsed.perQuestionEvaluations)) {
+      throw new Error('Invalid response format: perQuestionEvaluations must be an array');
+    }
+
+    // Validate per-question evaluations length matches number of questions
+    if (parsed.perQuestionEvaluations.length !== questions.length) {
+      throw new Error(`Invalid response format: perQuestionEvaluations must have exactly ${questions.length} items`);
+    }
+
+    // Validate each per-question evaluation
+    for (let i = 0; i < parsed.perQuestionEvaluations.length; i++) {
+      const qEval = parsed.perQuestionEvaluations[i];
+      if (typeof qEval.clarityScore !== 'number' || 
+          typeof qEval.correctnessScore !== 'number' || 
+          typeof qEval.communicationScore !== 'number') {
+        throw new Error(`Invalid response format: perQuestionEvaluations[${i}] scores must be numbers`);
+      }
+      if (qEval.clarityScore < 0 || qEval.clarityScore > 100 ||
+          qEval.correctnessScore < 0 || qEval.correctnessScore > 100 ||
+          qEval.communicationScore < 0 || qEval.communicationScore > 100) {
+        throw new Error(`Invalid response format: perQuestionEvaluations[${i}] scores must be between 0 and 100`);
+      }
+      if (typeof qEval.feedback !== 'string') {
+        throw new Error(`Invalid response format: perQuestionEvaluations[${i}].feedback must be a string`);
+      }
+    }
+
     // Ensure all array items are strings
     parsed.strengths = parsed.strengths.map(s => String(s)).filter(s => s.trim().length > 0);
     parsed.areasForImprovement = parsed.areasForImprovement.map(s => String(s)).filter(s => s.trim().length > 0);
@@ -249,6 +285,14 @@ Provide detailed, constructive feedback.`;
     parsed.correctnessScore = Math.round(Math.max(0, Math.min(100, parsed.correctnessScore)));
     parsed.communicationScore = Math.round(Math.max(0, Math.min(100, parsed.communicationScore)));
 
+    // Round and validate per-question evaluations
+    const perQuestionEvaluations = parsed.perQuestionEvaluations.map((qEval) => ({
+      clarityScore: Math.round(Math.max(0, Math.min(100, qEval.clarityScore))),
+      correctnessScore: Math.round(Math.max(0, Math.min(100, qEval.correctnessScore))),
+      communicationScore: Math.round(Math.max(0, Math.min(100, qEval.communicationScore))),
+      feedback: qEval.feedback.trim() || 'No specific feedback provided.',
+    }));
+
     const evaluation = {
       clarityScore: parsed.clarityScore,
       correctnessScore: parsed.correctnessScore,
@@ -256,6 +300,7 @@ Provide detailed, constructive feedback.`;
       strengths: parsed.strengths.length > 0 ? parsed.strengths : ['Demonstrated effort in responses'],
       areasForImprovement: parsed.areasForImprovement.length > 0 ? parsed.areasForImprovement : ['Continue practicing to improve'],
       overallFeedback: parsed.overallFeedback.trim() || 'Thank you for your responses. Keep practicing to improve your interview skills.',
+      perQuestionEvaluations,
     };
 
     return {

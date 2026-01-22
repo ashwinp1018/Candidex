@@ -66,6 +66,23 @@ export const getFallbackEvaluation = (answers) => {
     overallFeedback = 'Your responses need improvement. Focus on providing more detailed answers and enhancing communication clarity.';
   }
 
+  // Generate per-question evaluations
+  const perQuestionEvaluations = answers.map((answer, index) => {
+    const quality = answerQuality[index];
+    const baseQScore = Math.round(40 + quality * 50);
+    
+    return {
+      clarityScore: Math.min(100, Math.max(30, baseQScore + Math.floor(Math.random() * 10) - 5)),
+      correctnessScore: Math.min(100, Math.max(30, baseQScore + Math.floor(Math.random() * 10) - 5)),
+      communicationScore: Math.min(100, Math.max(30, baseQScore + Math.floor(Math.random() * 10) - 5)),
+      feedback: quality >= 0.75 
+        ? 'Good response with clear explanation.' 
+        : quality >= 0.5 
+        ? 'Adequate response, could be more detailed.' 
+        : 'Response needs more depth and clarity.',
+    };
+  });
+
   return {
     clarityScore,
     correctnessScore,
@@ -73,5 +90,6 @@ export const getFallbackEvaluation = (answers) => {
     strengths,
     areasForImprovement,
     overallFeedback,
+    perQuestionEvaluations,
   };
 };

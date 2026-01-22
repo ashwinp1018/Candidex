@@ -1,5 +1,5 @@
 import express from 'express';
-import { startInterview, submitInterview, getInterviewHistory } from '../controllers/interviewController.js';
+import { startInterview, submitInterview, getInterviewHistory, getInterviewAnalytics } from '../controllers/interviewController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { aiRateLimiter } from '../middleware/rateLimiter.js';
 
@@ -25,5 +25,12 @@ router.post('/submit', protect, aiRateLimiter(), submitInterview);
  * @access  Private
  */
 router.get('/history', protect, getInterviewHistory);
+
+/**
+ * @route   GET /api/interview/analytics
+ * @desc    Get interview analytics for logged-in user
+ * @access  Private
+ */
+router.get('/analytics', protect, getInterviewAnalytics);
 
 export default router;
